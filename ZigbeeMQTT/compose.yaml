@@ -1,0 +1,9 @@
+﻿services:
+  zigbeemqtt:
+    image: zigbeemqtt
+    build:
+      context: .
+      dockerfile: ZigbeeMQTT/Dockerfile
+
+
+
