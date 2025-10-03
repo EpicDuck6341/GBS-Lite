@@ -1,6 +1,7 @@
 using System.Text.Json.Nodes;
 using MQTTnet.Protocol;
 
+
 namespace Zigbee2MQTTClient;
 
 using MQTTnet;
@@ -38,7 +39,6 @@ public class ZigbeeClient
     }
 
 
-
     internal async Task SubscribeDevices()
     {
         var tcs = new TaskCompletionSource<bool>();
@@ -50,19 +50,16 @@ public class ZigbeeClient
 
             if (topic.Contains("zigbee2mqtt/bridge/devices"))
             {
-                
                 var devices = JsonSerializer.Deserialize<List<ZigbeeDevice>>(payload);
 
                 int i = 0;
                 string previousType = " ";
                 foreach (var d in devices)
                 {
-                    
-                    
                     if (previousType.Equals(d.type)) i++;
                     else i = 0;
                     previousType = d.type;
-                    
+
                     string name = d.type + i;
                     deviceList.Add(new ZigbeeDevice(
                         name,
@@ -73,8 +70,8 @@ public class ZigbeeClient
 
                     if (d.type.Equals("EndDevice"))
                     {
-                        
                         await mqttClient.SubscribeAsync("zigbee2mqtt/" + d.ieee_address);
+                        dbQ.setSubscribedStatus(true,d.ieee_address);
                     }
                 }
 
@@ -99,7 +96,7 @@ public class ZigbeeClient
         {
             if (d.type.Equals("EndDevice"))
             {
-                dbQ.queryReportInterval(d.model_id);
+                dbQ.queryReportInterval(d.model_id,"A");
                 foreach (var config in dbQ.configList)
                 {
                     var configureRequest = new
@@ -124,11 +121,118 @@ public class ZigbeeClient
 
                     await mqttClient.PublishAsync(message);
                     Console.WriteLine($"Sent configure_reporting for [{config.cluster},{config.attribute}]");
-                    
                 }
             }
         }
     }
+
+    // internal async Task allowJoin(int time)//Simply set to 0 if you want to block devices from joining/stop joining period early.
+    // {
+    //     var transactionId = Guid.NewGuid().ToString();
+    //
+    //     var payload = new
+    //     {
+    //         time = time,
+    //         transaction = transactionId
+    //     };
+    //
+    //     string payloadToSend = JsonSerializer.Serialize(payload);
+    //
+    //     var message = new MqttApplicationMessageBuilder()
+    //         .WithTopic("zigbee2mqtt/bridge/request/permit_join")
+    //         .WithPayload(payloadToSend)
+    //         .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtLeastOnce)
+    //         .Build();
+    //
+    //     await mqttClient.PublishAsync(message);
+    // }
+    
+    public async Task AllowJoinAndListen(int seconds)
+{
+    var transactionId = Guid.NewGuid().ToString();
+
+   
+    var payload = new { time = seconds, transaction = transactionId };
+    string payloadToSend = JsonSerializer.Serialize(payload);
+
+    var openMessage = new MqttApplicationMessageBuilder()
+        .WithTopic("zigbee2mqtt/bridge/request/permit_join")
+        .WithPayload(payloadToSend)
+        .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtLeastOnce)
+        .Build();
+    
+    await mqttClient.SubscribeAsync("zigbee2mqtt/bridge/event");
+
+    
+    Task Handler(MqttApplicationMessageReceivedEventArgs e)
+    {
+        if (e.ApplicationMessage.Topic != "zigbee2mqtt/bridge/event")
+            return Task.CompletedTask;
+
+        string payloadStr = Encoding.UTF8.GetString(e.ApplicationMessage.Payload);
+        var json = JsonSerializer.Deserialize<JsonElement>(payloadStr);
+
+        if (json.GetProperty("type").GetString() == "device_announce")
+        {
+            var data = json.GetProperty("data");
+            string address = data.GetProperty("ieee_address").GetString();
+            string model = data.GetProperty("model_id").GetString();
+            dbQ.devicePresent(model,address);
+
+            Console.WriteLine($"Device joined:{address}");
+        }
+
+        return Task.CompletedTask;
+    }
+
+    mqttClient.ApplicationMessageReceivedAsync += Handler;
+
+    
+    await mqttClient.PublishAsync(openMessage);
+    
+    await Task.Delay(seconds * 1000);
+    
+    var closePayload = JsonSerializer.Serialize(new { time = 0, transaction = Guid.NewGuid().ToString() });
+    var closeMessage = new MqttApplicationMessageBuilder()
+        .WithTopic("zigbee2mqtt/bridge/request/permit_join")
+        .WithPayload(closePayload)
+        .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtLeastOnce)
+        .Build();
+
+    await mqttClient.PublishAsync(closeMessage);
+    
+    mqttClient.ApplicationMessageReceivedAsync -= Handler;
+}
+
+
+    
+    internal async Task removeDevice(string name)//name of the device to remove,names are stored in the database and are self made
+    {
+        var transactionId = Guid.NewGuid().ToString();
+        var address = dbQ.queryDeviceAddress(name);
+        var payload = new
+        {
+            id =address,
+            force = true,
+            block = false,
+            transaction = transactionId
+        };
+        
+        dbQ.setSubscribedStatus(false,address);
+        dbQ.setActiveStatus(false,address);
+
+        string payloadToSend = JsonSerializer.Serialize(payload);
+
+        var message = new MqttApplicationMessageBuilder()
+            .WithTopic("zigbee2mqtt/bridge/request/device/remove")
+            .WithPayload(payloadToSend)
+            .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtLeastOnce)
+            .Build();
+
+        await mqttClient.PublishAsync(message);
+    }
+    
+
 
     internal void StartProcessingMessages()
     {
@@ -137,23 +241,23 @@ public class ZigbeeClient
         {
             string topic = e.ApplicationMessage.Topic;
             string payload = Encoding.UTF8.GetString(e.ApplicationMessage.Payload.ToArray());
-            
+
             if (!topic.Contains("zigbee2mqtt/bridge"))
             {
-                string filterTopic = topic.Replace("zigbee2mqtt/","");
+                string filterTopic = topic.Replace("zigbee2mqtt/", "");
                 var node = JsonNode.Parse(Encoding.UTF8.GetString(e.ApplicationMessage.Payload.ToArray()));
                 var filtered = new JsonObject();
                 string modelID = dbQ.queryModelID(filterTopic);
                 List<String> keyPairs = dbQ.queryDataFilter(modelID);
-                
-                foreach (var key in keyPairs )
+
+                foreach (var key in keyPairs)
                 {
                     if (node[key] != null)
                     {
                         filtered[key] = node[key]!.DeepClone();
                     }
                 }
-                
+
                 Console.WriteLine($"[{dbQ.queryDeviceName(modelID)},{modelID}]{filtered.ToJsonString()}");
                 // Console.WriteLine($"[{topic}] {payload}");
             }
