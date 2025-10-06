@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("ZigbeeMQTT")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+c987c960df81ec298dbede00a5df3805d647cc1c")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+e302476ba9ede7e75a0b25858088b4c30ddf3cd8")]
 [assembly: System.Reflection.AssemblyProductAttribute("ZigbeeMQTT")]
 [assembly: System.Reflection.AssemblyTitleAttribute("ZigbeeMQTT")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

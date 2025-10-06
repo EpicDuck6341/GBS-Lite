@@ -12,11 +12,10 @@ namespace Zigbee2MQTTClient
         static async Task Main(string[] args)
         {
             
-            dbQ.devicePresent("SNZB-03P","testAddress");
-            // await zbClient.ConnectToMqtt();
-            // await Task.Delay(1000);
-            // await zbClient.AllowJoinAndListen(200);
-            // await zbClient.allowJoin(10);
+            // dbQ.devicePresent("SNZB-03P","testAddress");
+            await zbClient.ConnectToMqtt();
+            await Task.Delay(1000);
+            await zbClient.AllowJoinAndListen(200);
             // await Task.Delay(10000);
             // await zbClient.removeDevice("PIR");
             // await zbClient.allowJoin(0);

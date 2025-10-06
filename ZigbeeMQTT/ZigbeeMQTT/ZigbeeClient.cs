@@ -171,15 +171,25 @@ public class ZigbeeClient
 
         string payloadStr = Encoding.UTF8.GetString(e.ApplicationMessage.Payload);
         var json = JsonSerializer.Deserialize<JsonElement>(payloadStr);
-
-        if (json.GetProperty("type").GetString() == "device_announce")
-        {
+        if (json.GetProperty("type").GetString() == "device_interview"&& json.GetProperty("data").GetProperty("status").GetString()=="successful")
+        {Console.WriteLine(json);
             var data = json.GetProperty("data");
+            // Console.WriteLine(data);
             string address = data.GetProperty("ieee_address").GetString();
-            string model = data.GetProperty("model_id").GetString();
+            string model = data.GetProperty("definition").GetProperty("model").GetString();
+            var exposes = data.GetProperty("definition").GetProperty("exposes");
             dbQ.devicePresent(model,address);
-
+            
             Console.WriteLine($"Device joined:{address}");
+            foreach (JsonElement expose in exposes.EnumerateArray())
+            {
+                // Example: print label and type
+                string property = expose.GetProperty("property").GetString();
+                string description = expose.GetProperty("description").GetString();
+
+                Console.WriteLine($"  - {property} ({description})");
+            }
+            
         }
 
         return Task.CompletedTask;
