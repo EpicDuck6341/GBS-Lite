@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "/home/vboxuser/Documents/GBS-Lite/ZigbeeMQTT/ZigbeeMQTT/ZigbeeMQTT.csproj": {}
+    "/home/vboxuser/RiderProjects/GBS-Lite/ZigbeeMQTT/ZigbeeMQTT/ZigbeeMQTT.csproj": {}
   },
   "projects": {
-    "/home/vboxuser/Documents/GBS-Lite/ZigbeeMQTT/ZigbeeMQTT/ZigbeeMQTT.csproj": {
+    "/home/vboxuser/RiderProjects/GBS-Lite/ZigbeeMQTT/ZigbeeMQTT/ZigbeeMQTT.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "/home/vboxuser/Documents/GBS-Lite/ZigbeeMQTT/ZigbeeMQTT/ZigbeeMQTT.csproj",
+        "projectUniqueName": "/home/vboxuser/RiderProjects/GBS-Lite/ZigbeeMQTT/ZigbeeMQTT/ZigbeeMQTT.csproj",
         "projectName": "ZigbeeMQTT",
-        "projectPath": "/home/vboxuser/Documents/GBS-Lite/ZigbeeMQTT/ZigbeeMQTT/ZigbeeMQTT.csproj",
+        "projectPath": "/home/vboxuser/RiderProjects/GBS-Lite/ZigbeeMQTT/ZigbeeMQTT/ZigbeeMQTT.csproj",
         "packagesPath": "/home/vboxuser/.nuget/packages/",
-        "outputPath": "/home/vboxuser/Documents/GBS-Lite/ZigbeeMQTT/ZigbeeMQTT/obj/",
+        "outputPath": "/home/vboxuser/RiderProjects/GBS-Lite/ZigbeeMQTT/ZigbeeMQTT/obj/",
         "projectStyle": "PackageReference",
         "configFilePaths": [
           "/home/vboxuser/.nuget/NuGet/NuGet.Config"
@@ -66,6 +66,10 @@
             "Microsoft.Data.Sqlite.Core": {
               "target": "Package",
               "version": "[10.0.0-rc.1.25451.107, )"
+            },
+            "Npgsql": {
+              "target": "Package",
+              "version": "[10.0.0-rc.1, )"
             },
             "SQLitePCLRaw.bundle_e_sqlite3": {
               "target": "Package",

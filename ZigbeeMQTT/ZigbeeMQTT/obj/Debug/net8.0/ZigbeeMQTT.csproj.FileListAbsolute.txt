@@ -168,3 +168,7 @@
 /home/vboxuser/Documents/GBS-Lite/ZigbeeMQTT/ZigbeeMQTT/obj/Debug/net8.0/ZigbeeMQTT.pdb
 /home/vboxuser/Documents/GBS-Lite/ZigbeeMQTT/ZigbeeMQTT/obj/Debug/net8.0/ZigbeeMQTT.genruntimeconfig.cache
 /home/vboxuser/Documents/GBS-Lite/ZigbeeMQTT/ZigbeeMQTT/obj/Debug/net8.0/ref/ZigbeeMQTT.dll
+/home/vboxuser/RiderProjects/GBS-Lite/ZigbeeMQTT/ZigbeeMQTT/bin/Debug/net8.0/Microsoft.Extensions.DependencyInjection.Abstractions.dll
+/home/vboxuser/RiderProjects/GBS-Lite/ZigbeeMQTT/ZigbeeMQTT/bin/Debug/net8.0/Microsoft.Extensions.Logging.Abstractions.dll
+/home/vboxuser/RiderProjects/GBS-Lite/ZigbeeMQTT/ZigbeeMQTT/bin/Debug/net8.0/Npgsql.dll
+/home/vboxuser/RiderProjects/GBS-Lite/ZigbeeMQTT/ZigbeeMQTT/bin/Debug/net8.0/System.Diagnostics.DiagnosticSource.dll

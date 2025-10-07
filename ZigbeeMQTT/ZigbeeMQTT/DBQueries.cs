@@ -1,339 +1,510 @@
-namespace Zigbee2MQTTClient;
-
-using SQLitePCL;
+using Npgsql;
 using System;
-using Microsoft.Data.Sqlite;
+using System.Collections.Generic;
 
-public class DBQueries
+namespace Zigbee2MQTTClient
 {
-    public List<ReportConfig> configList = new List<ReportConfig>();
-
-
-    static string dbPath = "/home/vboxuser/RiderProjects/GBS-Lite/ZigbeeMQTT/ZigbeeMQTT/DevicesData.db";
-
-    static string connectionString = $"Data Source={dbPath}";
-    public SqliteConnection connection = new SqliteConnection(connectionString);
-
-    public void dbConnect()
+    public class DBQueries
     {
-        SQLitePCL.Batteries.Init();
+        private List<ReportConfig> configList = new List<ReportConfig>();
 
-        if (!File.Exists(dbPath))
+        // PostgreSQL connection string
+        static string connectionString =
+            "Host=localhost;Port=5432;Database=DevicesData;Username=postgres;Password=0502";
+
+        public NpgsqlConnection connection = new NpgsqlConnection(connectionString);
+
+        // Open connection
+        public void dbConnect()
         {
-            Console.WriteLine($"Database file not found at: {dbPath}");
-            return; // exit early
-        }
-        else
-        {
-            // Console.WriteLine($"Database file found at: {dbPath}");
+            if (connection.State != System.Data.ConnectionState.Open)
+            {
+                connection.Open();
+            }
         }
 
-        connection.Open();
-    }
-
-
-    public string queryDeviceName(string modelId)
-    {
-        dbConnect();
-        string deviceName;
-
-        var command = connection.CreateCommand();
-        command.CommandText = @"
-        SELECT Name
-        FROM Devices
-        WHERE ModelID = $modelId;
-    ";
-        command.Parameters.AddWithValue("$modelId", modelId);
-
-        using var reader = command.ExecuteReader();
-        if (reader.Read())
+        // Query device name by ModelID
+        public string queryDeviceName(string modelId)
         {
-            deviceName = reader.GetString(0);
+            dbConnect();
+            string deviceName = null;
+
+            using var cmd = new NpgsqlCommand("SELECT Name FROM Devices WHERE ModelID = @modelId;", connection);
+            cmd.Parameters.AddWithValue("@modelId", modelId);
+
+            using var reader = cmd.ExecuteReader();
+            if (reader.Read())
+            {
+                deviceName = reader.GetString(0);
+            }
+
+            reader.Close();
             return deviceName;
         }
-        else
+
+        // Query device address by Name
+        public string queryDeviceAddress(string name)
         {
-            Console.WriteLine("No matching device found.");
-            return null;
-        }
-    }
+            dbConnect();
+            string deviceAddress = null;
 
-    public string queryDeviceAddress(string name)
-    {
-        dbConnect();
-        string deviceAddress;
+            using var cmd = new NpgsqlCommand("SELECT Address FROM Devices WHERE Name = @Name;", connection);
+            cmd.Parameters.AddWithValue("@Name", name);
 
-        var command = connection.CreateCommand();
-        command.CommandText = @"
-        SELECT Address
-        FROM Devices
-        WHERE Name = $Name;
-    ";
-        command.Parameters.AddWithValue("$Name", name);
+            using var reader = cmd.ExecuteReader();
+            if (reader.Read())
+            {
+                deviceAddress = reader.GetString(0);
+            }
 
-        using var reader = command.ExecuteReader();
-        if (reader.Read())
-        {
-            deviceAddress = reader.GetString(0);
+            reader.Close();
             return deviceAddress;
         }
-        else
+
+        // Query ModelID by Address
+        public string queryModelID(string address)
         {
-            Console.WriteLine("No matching device found.");
-            return null;
-        }
-    }
+            dbConnect();
+            string modelID = null;
 
-    public string queryModelID(string address)
-    {
-        dbConnect();
-        string modelID;
+            using var cmd = new NpgsqlCommand("SELECT ModelID FROM Devices WHERE Address = @Address;", connection);
+            cmd.Parameters.AddWithValue("@Address", address);
 
-        var command = connection.CreateCommand();
-        command.CommandText = @"
-        SELECT ModelID
-        FROM Devices
-        WHERE Address = $Address;
-    ";
-        command.Parameters.AddWithValue("$Address", address);
+            using var reader = cmd.ExecuteReader();
+            if (reader.Read())
+            {
+                modelID = reader.GetString(0);
+            }
 
-        using var reader = command.ExecuteReader();
-        if (reader.Read())
-        {
-            modelID = reader.GetString(0);
+            reader.Close();
             return modelID;
         }
-        else
+
+        // Query report intervals
+        // public void
+        //     queryReportInterval(string address, string table) // "A" = configured_reportings, "B" = ReportTemplate
+        // {
+        //     configList.Clear();
+        //     dbConnect();
+        //
+        //     string tableName = table == "A" ? "configuredreportings" : "reporttemplate";
+        //
+        //     using var cmd = new NpgsqlCommand($"SELECT * FROM {tableName} WHERE address = @address;", connection);
+        //     cmd.Parameters.AddWithValue("@modelId", address);
+        //
+        //     using var reader = cmd.ExecuteReader();
+        //     while (reader.Read())
+        //     {
+        //         configList.Add(new ReportConfig(
+        //             address,
+        //             reader["cluster"].ToString(),
+        //             reader["attribute"].ToString(),
+        //             reader["maximum_report_interval"].ToString(),
+        //             reader["minimum_report_interval"].ToString(),
+        //             reader["reportable_change"].ToString(),
+        //             reader["endpoint"].ToString()
+        //         ));
+        //     }
+        //
+        //     reader.Close();
+        // }
+
+        // Query DeviceFilters for a model
+        public List<string> queryDataFilter(string modelId)
         {
-            Console.WriteLine("No matching device found");
-            return null;
-        }
-    }
+            dbConnect();
+            List<string> filterList = new List<string>();
 
-    public void
-        queryReportInterval(string modelId, string table) //call a for configured reportings and B for report template
-    {
-        configList.Clear();
-        dbConnect();
+            using var cmd = new NpgsqlCommand("SELECT FilterValue FROM DeviceFilters WHERE ModelID = @modelId;",
+                connection);
+            cmd.Parameters.AddWithValue("@modelId", modelId);
 
-        // Decide table based on model
-        string tableName = table == "A" ? "configured_reportings" : "ReportTemplate";
+            using var reader = cmd.ExecuteReader();
+            while (reader.Read())
+            {
+                filterList.Add(reader.GetString(0));
+            }
 
-        using var command = connection.CreateCommand();
-        command.CommandText = $@"
-        SELECT *
-        FROM {tableName}
-        WHERE ModelID = $modelId;
-    ";
-        command.Parameters.AddWithValue("$modelId", modelId);
-
-        using var reader = command.ExecuteReader();
-        bool anyRows = false;
-
-        while (reader.Read())
-        {
-            anyRows = true;
-            configList.Add(new ReportConfig(
-                modelId,
-                reader["cluster"].ToString(),
-                reader["attribute"].ToString(),
-                reader["maximum_report_interval"].ToString(),
-                reader["minimum_report_interval"].ToString(),
-                reader["reportable_change"].ToString(),
-                reader["endpoint"].ToString()));
-        }
-
-        if (!anyRows)
-            Console.WriteLine("No matching device found.");
-    }
-
-
-    public List<String> queryDataFilter(string modelId)
-    {
-        dbConnect();
-        List<String> filterList = new List<String>();
-        var command = connection.CreateCommand();
-        command.CommandText = @"
-        SELECT *
-        FROM DeviceFilters
-        WHERE ModelID = $modelId;
-    ";
-        command.Parameters.AddWithValue("$modelId", modelId);
-        using var reader = command.ExecuteReader();
-        bool anyRows = false;
-        while (reader.Read())
-        {
-            anyRows = true;
-            filterList.Add(reader["FilterValue"].ToString());
+            reader.Close();
+            return filterList.Count > 0 ? filterList : null;
         }
 
-
-        if (!anyRows)
+        // Update active status
+        public void setActiveStatus(bool active, string address)
         {
-            Console.WriteLine("No matching device found.");
-            return null;
+            dbConnect();
+            using var cmd = new NpgsqlCommand("UPDATE Devices SET active = @active WHERE Address = @Address;",
+                connection);
+            cmd.Parameters.AddWithValue("@active", active);
+            cmd.Parameters.AddWithValue("@Address", address);
+            cmd.ExecuteNonQuery();
         }
 
-        return filterList;
-    }
-
-    public void setActiveStatus(bool active, string address)
-    {
-        dbConnect();
-        var command = connection.CreateCommand();
-        command.CommandText = @"
-        UPDATE Devices 
-        SET active = $active
-        Where Address = $Address;
-    ";
-
-        command.Parameters.AddWithValue("$active", active);
-        command.Parameters.AddWithValue("$Address", address);
-
-        command.ExecuteNonQuery();
-    }
-
-    public void setSubscribedStatus(bool subscribed, string address)
-    {
-        dbConnect();
-        var command = connection.CreateCommand();
-        command.CommandText = @"
-        UPDATE Devices 
-        SET subscribed = $subscribed
-        Where Address = $Address;
-    ";
-
-        command.Parameters.AddWithValue("$subscribed", subscribed);
-        command.Parameters.AddWithValue("$Address", address);
-
-        command.ExecuteNonQuery();
-    }
-
-
-    public void devicePresent(string modelID, string address)
-    {
-        dbConnect();
-        var command = connection.CreateCommand();
-        command.CommandText = @"
-            SELECT 1
-            FROM Devices
-            WHERE Address = $Address
-                ";
-        command.Parameters.AddWithValue("$Address", address);
-
-        object result = command.ExecuteScalar();
-
-        if (result != null && (long)result == 1)
+        // Update subscribed status
+        public void setSubscribedStatus(bool subscribed, string address)
         {
-            Console.WriteLine("Device already present");
-            setActiveStatus(true, address);
+            dbConnect();
+            using var cmd = new NpgsqlCommand("UPDATE Devices SET subscribed = @subscribed WHERE Address = @Address;",
+                connection);
+            cmd.Parameters.AddWithValue("@subscribed", subscribed);
+            cmd.Parameters.AddWithValue("@Address", address);
+            cmd.ExecuteNonQuery();
         }
-        else
+
+        // Check if device exists
+        public bool devicePresent(string modelID, string address)
         {
-            Console.WriteLine("Device not yet present");
-            modelPresent(modelID, address);
+            dbConnect();
+            using var cmd = new NpgsqlCommand("SELECT 1 FROM Devices WHERE Address = @Address;", connection);
+            cmd.Parameters.AddWithValue("@Address", address);
+
+            var result = cmd.ExecuteScalar();
+            if (result != null)
+            {
+                Console.WriteLine("Device already present");
+                return true;
+            }
+            else
+            {
+                Console.WriteLine("Device not yet present");
+                modelPresent(modelID, address);
+                return false;
+            }
         }
-    }
 
-    public void modelPresent(string modelID, string address)
-    {
-        dbConnect();
-        var command = connection.CreateCommand();
-        command.CommandText = @"
-            SELECT 1
-            FROM Devices
-            WHERE ModelID = $ModelID
-                ";
-        command.Parameters.AddWithValue("ModelID", modelID);
-
-        object result = command.ExecuteScalar();
-
-        if (result != null && (long)result == 1)
+        // Check if model exists
+        public bool modelPresent(string modelID, string address)
         {
-            Console.WriteLine("Model already present");
-            copyModelTemplate(modelID, address);
-        }
-        else
-        {
+            dbConnect();
+            using var cmd = new NpgsqlCommand("SELECT 1 FROM Devices WHERE ModelID = @ModelID;", connection);
+            cmd.Parameters.AddWithValue("@ModelID", modelID);
+
+            var result = cmd.ExecuteScalar();
+            if (result != null)
+            {
+                Console.WriteLine("Model already present");
+                return true;
+            }
+
             Console.WriteLine("Model not yet present");
-            newDeviceEntry();
+            return false;
         }
-    }
 
-    public void copyModelTemplate(string modelID, string address)
-    {
-        dbConnect();
-        var command = connection.CreateCommand();
-        command.CommandText = @"
-        SELECT Name,NumberActive
-        FROM DeviceTemplate
-        WHERE ModelID = $ModelID;
+        // Copy model template to create new device
+        public void copyModelTemplate(string modelID, string address)
+        {
+            dbConnect();
+
+            string newName = "temp";
+
+            using (var cmd = new NpgsqlCommand(
+                       "SELECT Name, NumberActive FROM DeviceTemplate WHERE ModelID = @ModelID;", connection))
+            {
+                cmd.Parameters.AddWithValue("@ModelID", modelID);
+                using var reader = cmd.ExecuteReader();
+                if (reader.Read())
+                {
+                    string name = reader.GetString(0);
+                    string numberActive = reader.GetInt32(1).ToString();
+                    newName = name + numberActive;
+                }
+            }
+
+            // Increment NumberActive
+            using var cmdUpdate =
+                new NpgsqlCommand("UPDATE DeviceTemplate SET NumberActive = NumberActive + 1 WHERE ModelID = @ModelID;",
+                    connection);
+            cmdUpdate.Parameters.AddWithValue("@ModelID", modelID);
+            cmdUpdate.ExecuteNonQuery();
+
+            // Insert new device
+            newDeviceEntry(modelID, newName, address);
+
+
+            // Copy report configs
+            // queryReportInterval(modelID, "B");
+            // foreach (var config in configList)
+            // {
+            //     using var cmdReport = new NpgsqlCommand(@"
+            //         INSERT INTO configured_reportings
+            //         (Address, ModelID, cluster, attribute, maximum_report_interval, minimum_report_interval, reportable_change, endpoint)
+            //         VALUES
+            //         (@Address, @ModelID, @Cluster, @Attribute, @MaxInterval, @MinInterval, @ReportableChange, @Endpoint);",
+            //         connection);
+            //
+            //     cmdReport.Parameters.AddWithValue("@Address", address);
+            //     cmdReport.Parameters.AddWithValue("@ModelID", modelID);
+            //     cmdReport.Parameters.AddWithValue("@Cluster", config.cluster);
+            //     cmdReport.Parameters.AddWithValue("@Attribute", config.attribute);
+            //     cmdReport.Parameters.AddWithValue("@MaxInterval", config.maximum_report_interval);
+            //     cmdReport.Parameters.AddWithValue("@MinInterval", config.minimum_report_interval);
+            //     cmdReport.Parameters.AddWithValue("@ReportableChange", config.reportable_change);
+            //     cmdReport.Parameters.AddWithValue("@Endpoint", config.endpoint);
+            //
+            //     cmdReport.ExecuteNonQuery();
+            // }
+        }
+
+        public void newDeviceEntry(string modelID, string newName, string address)
+        {
+            dbConnect();
+            using var cmdInsert =
+                new NpgsqlCommand("INSERT INTO Devices (ModelID, Name, Address) VALUES (@ModelID, @Name, @Address);",
+                    connection);
+            cmdInsert.Parameters.AddWithValue("@ModelID", modelID);
+            cmdInsert.Parameters.AddWithValue("@Name", newName);
+            cmdInsert.Parameters.AddWithValue("@Address", address);
+            cmdInsert.ExecuteNonQuery();
+        }
+
+        public void newConfigRepEntry(
+            string tableName,
+            string address,
+            string modelID,
+            string cluster,
+            string attribute,
+            string maximumReportInterval,
+            string minimumReportInterval,
+            string reportableChange,
+            string endpoint)
+        {
+            dbConnect();
+
+            var allowedTables = new[] { "configuredreportings", "reporttemplate" };
+            if (Array.IndexOf(allowedTables, tableName.ToLower()) < 0)
+            {
+                throw new ArgumentException("Invalid table name specified.");
+            }
+
+            string sql;
+            using var cmdInsert = new NpgsqlCommand();
+            cmdInsert.Connection = connection;
+
+            if (tableName.ToLower() == "reporttemplate")
+            {
+                // omit address column
+                sql = @"
+            INSERT INTO reporttemplate 
+            (modelid, cluster, attribute, maximumreportinterval, minimumreportinterval, reportablechange, endpoint)
+            VALUES 
+            (@ModelID, @Cluster, @Attribute, @MaxReportInterval, @MinReportInterval, @ReportableChange, @Endpoint);
+        ";
+
+                cmdInsert.CommandText = sql;
+                cmdInsert.Parameters.AddWithValue("@ModelID", modelID);
+                cmdInsert.Parameters.AddWithValue("@Cluster", cluster);
+                cmdInsert.Parameters.AddWithValue("@Attribute", attribute);
+                cmdInsert.Parameters.AddWithValue("@MaxReportInterval", maximumReportInterval);
+                cmdInsert.Parameters.AddWithValue("@MinReportInterval", minimumReportInterval);
+                cmdInsert.Parameters.AddWithValue("@ReportableChange", reportableChange);
+                cmdInsert.Parameters.AddWithValue("@Endpoint", endpoint);
+            }
+            else
+            {
+                // include address column
+                sql = @"
+            INSERT INTO configuredreportings 
+            (address, modelid, cluster, attribute, maximumreportinterval, minimumreportinterval, reportablechange, endpoint)
+            VALUES 
+            (@Address, @ModelID, @Cluster, @Attribute, @MaxReportInterval, @MinReportInterval, @ReportableChange, @Endpoint);
+        ";
+
+                cmdInsert.CommandText = sql;
+                cmdInsert.Parameters.AddWithValue("@Address", address);
+                cmdInsert.Parameters.AddWithValue("@ModelID", modelID);
+                cmdInsert.Parameters.AddWithValue("@Cluster", cluster);
+                cmdInsert.Parameters.AddWithValue("@Attribute", attribute);
+                cmdInsert.Parameters.AddWithValue("@MaxReportInterval", maximumReportInterval);
+                cmdInsert.Parameters.AddWithValue("@MinReportInterval", minimumReportInterval);
+                cmdInsert.Parameters.AddWithValue("@ReportableChange", reportableChange);
+                cmdInsert.Parameters.AddWithValue("@Endpoint", endpoint);
+            }
+
+            cmdInsert.ExecuteNonQuery();
+        }
+
+
+        public void newDVTemplateEntry(string modelID, string name)
+        {
+            dbConnect(); // Ensure the database connection is open
+
+            using var cmdInsert = new NpgsqlCommand(@"
+        INSERT INTO devicetemplate (modelid, name, numberactive)
+        VALUES (@ModelID, @Name, 1);
+    ", connection);
+
+            cmdInsert.Parameters.AddWithValue("@ModelID", modelID);
+            cmdInsert.Parameters.AddWithValue("@Name", name);
+
+            cmdInsert.ExecuteNonQuery();
+        }
+
+
+        public void newFilterEntry(string modelID, string filterValue, bool active)
+        {
+            dbConnect();
+
+            using var cmdInsert = new NpgsqlCommand(@"
+        INSERT INTO devicefilters (modelid, filtervalue, active)
+        VALUES (@ModelID, @FilterValue, @Active);
+    ", connection);
+
+            cmdInsert.Parameters.AddWithValue("@ModelID", modelID);
+            cmdInsert.Parameters.AddWithValue("@FilterValue", filterValue);
+            cmdInsert.Parameters.AddWithValue("@Active", active);
+
+            cmdInsert.ExecuteNonQuery();
+        }
+
+        public void UnsubOnExit()
+        {
+            dbConnect();
+
+            string sql = "UPDATE devices SET subscribed = false;";
+
+            using var cmd = new NpgsqlCommand(sql, connection);
+            cmd.ExecuteNonQuery();
+
+            Console.WriteLine("All devices unsubscribed.");
+        }
+
+        public List<string> GetUnsubscribedAddresses()
+        {
+            var addresses = new List<string>();
+            dbConnect();
+
+            string sql = "SELECT address FROM devices WHERE subscribed = false;";
+
+            using var cmd = new NpgsqlCommand(sql, connection);
+            using var reader = cmd.ExecuteReader();
+            while (reader.Read())
+            {
+                addresses.Add(reader.GetString(0));
+
+                return addresses;
+            }
+
+            return null;
+        }
+
+        public List<string> GetSubscribedAddresses()
+        {
+            var addresses = new List<string>();
+            dbConnect();
+
+            string sql = "SELECT address FROM devices WHERE subscribed = true;";
+
+            using var cmd = new NpgsqlCommand(sql, connection);
+            using var reader = cmd.ExecuteReader();
+            while (reader.Read())
+            {
+                addresses.Add(reader.GetString(0));
+
+                return addresses;
+            }
+
+            return null;
+        }
+
+        public void AdjustRepConfig(
+            string address,
+            string cluster,
+            string attribute,
+            string maximumReportInterval,
+            string minimumReportInterval,
+            string reportableChange,
+            string endpoint)
+        {
+            dbConnect();
+
+            string sql = @"
+        UPDATE configuredreportings
+        SET 
+            maximumreportinterval = @MaxReportInterval,
+            minimumreportinterval = @MinReportInterval,
+            reportablechange = @ReportableChange,
+            adjusted = true
+        WHERE 
+            address = @Address AND
+            cluster = @Cluster AND
+            attribute = @Attribute AND
+            endpoint = @Endpoint;
     ";
-        command.Parameters.AddWithValue("$ModelID", modelID);
 
-        using var reader = command.ExecuteReader();
+            using var cmd = new NpgsqlCommand(sql, connection);
+            cmd.Parameters.AddWithValue("@MaxReportInterval", maximumReportInterval);
+            cmd.Parameters.AddWithValue("@MinReportInterval", minimumReportInterval);
+            cmd.Parameters.AddWithValue("@ReportableChange", reportableChange);
+            cmd.Parameters.AddWithValue("@Address", address);
+            cmd.Parameters.AddWithValue("@Cluster", cluster);
+            cmd.Parameters.AddWithValue("@Attribute", attribute);
+            cmd.Parameters.AddWithValue("@Endpoint", endpoint);
 
-        string newName = "temp";
-        if (reader.Read())
-        {
-            string name = reader["Name"].ToString();
-            string numberActive = reader["NumberActive"].ToString();
-            newName = name + numberActive;
-
-            Console.WriteLine($"New Name: {newName}");
-        }
-        
-        var command4 = connection.CreateCommand();
-        command4.CommandText = @"
-                UPDATE DeviceTemplate
-                SET NumberActive = NumberActive + 1
-                WHERE ModelID = $modelId;
-            ";
-        command4.Parameters.AddWithValue("$modelId", modelID);
-
-        command4.ExecuteNonQuery();
-
-        using (var command2 = connection.CreateCommand())
-        {
-            command2.CommandText = @"
-            INSERT INTO Devices (ModelID, Name, Address)
-            VALUES ($ModelID, $Name, $Address);
-        ";
-
-            command2.Parameters.AddWithValue("$ModelID", modelID);
-            command2.Parameters.AddWithValue("$Name", newName);
-            command2.Parameters.AddWithValue("$Address", address);
-            command2.ExecuteNonQuery();
+            cmd.ExecuteNonQuery();
         }
 
-        queryReportInterval(modelID, "B");
+        public List<ReportConfig> GetChangedReportConfigs(List<string> subscribedAddresses)
+{
+    var changedConfigs = new List<ReportConfig>();
+    dbConnect(); 
+    if (subscribedAddresses == null || subscribedAddresses.Count == 0)
+        return changedConfigs; 
 
-        foreach (var config in configList)
-        {
-            using var command3 = connection.CreateCommand();
-            command3.CommandText = @"
-            INSERT INTO configured_reportings
-            (Address, ModelID, cluster, attribute, maximum_report_interval, minimum_report_interval, reportable_change, endpoint)
-            VALUES
-            ($Address, $ModelID, $Cluster, $Attribute, $MaxInterval, $MinInterval, $ReportableChange, $Endpoint);
-        ";
+    
+    var parameters = subscribedAddresses
+        .Select((addr, index) => $"@addr{index}")
+        .ToList();
+    string inClause = string.Join(", ", parameters);
 
-            command3.Parameters.AddWithValue("$Address", address);
-            command3.Parameters.AddWithValue("$ModelID", modelID);
-            command3.Parameters.AddWithValue("$Cluster", config.cluster);
-            command3.Parameters.AddWithValue("$Attribute", config.attribute);
-            command3.Parameters.AddWithValue("$MaxInterval", config.maximum_report_interval);
-            command3.Parameters.AddWithValue("$MinInterval", config.minimum_report_interval);
-            command3.Parameters.AddWithValue("$ReportableChange", config.reportable_change);
-            command3.Parameters.AddWithValue("$Endpoint", config.endpoint);
+    
+    string selectSql = $@"
+        SELECT address, cluster, modelid, attribute, maximumreportinterval, minimumreportinterval, reportablechange, endpoint
+        FROM configuredreportings
+        WHERE adjusted = true AND address IN ({inClause});
+    ";
 
-            command3.ExecuteNonQuery();
-        }
+    using var selectCmd = new NpgsqlCommand(selectSql, connection);
+
+    for (int i = 0; i < subscribedAddresses.Count; i++)
+    {
+        selectCmd.Parameters.AddWithValue($"@addr{i}", subscribedAddresses[i]);
     }
 
-    public void newDeviceEntry()
+    using var reader = selectCmd.ExecuteReader();
+    while (reader.Read())
     {
-        dbConnect();
-        var command = connection.CreateCommand();
+        changedConfigs.Add(new ReportConfig(
+            reader["address"].ToString(),
+            reader["modelid"].ToString(),
+            reader["cluster"].ToString(),
+            reader["attribute"].ToString(),
+            reader["minimumreportinterval"].ToString(),
+            reader["maximumreportinterval"].ToString(),
+            reader["reportablechange"].ToString(),
+            reader["endpoint"].ToString()
+        ));
+    }
+    reader.Close(); 
+
+    
+    string updateSql = $@"
+        UPDATE configuredreportings
+        SET adjusted = false
+        WHERE adjusted = true AND address IN ({inClause});
+    ";
+
+    using var updateCmd = new NpgsqlCommand(updateSql, connection);
+
+    for (int i = 0; i < subscribedAddresses.Count; i++)
+    {
+        updateCmd.Parameters.AddWithValue($"@addr{i}", subscribedAddresses[i]);
+    }
+
+    updateCmd.ExecuteNonQuery();
+
+    return changedConfigs;
+}
+
+
     }
 }

@@ -2,6 +2,7 @@ namespace Zigbee2MQTTClient;
 
 public class ReportConfig
 {
+    public string? address { get; set; }
     public string? modelID { get; set; }
     public string? cluster { get; set; }
     public string? attribute { get; set; }
@@ -11,8 +12,9 @@ public class ReportConfig
     public string? endpoint { get; set; }
     
 
-    public ReportConfig(string? model_id, string? cluster, string? attribute, string? maximum_report_interval,string? minimum_report_interval,string? reportable_change,string? endpoint)
+    public ReportConfig(string? address, string? model_id, string? cluster, string? attribute, string? maximum_report_interval,string? minimum_report_interval,string? reportable_change,string? endpoint)
     {
+        this.address = address;
         this.modelID = model_id;
         this.cluster = cluster;
         this.attribute = attribute;

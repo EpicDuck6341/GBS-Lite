@@ -1,4 +1,5 @@
-﻿using MQTTnet;
+﻿using System.Text.Json;
+using MQTTnet;
 
 namespace Zigbee2MQTTClient
 {
@@ -11,22 +12,40 @@ namespace Zigbee2MQTTClient
         //Main to run the code
         static async Task Main(string[] args)
         {
-            
-            // dbQ.devicePresent("SNZB-03P","testAddress");
+            AppDomain.CurrentDomain.ProcessExit += OnProcessExit;
+            Console.CancelKeyPress += OnCancelKeyPress; 
             await zbClient.ConnectToMqtt();
             await Task.Delay(1000);
-            await zbClient.AllowJoinAndListen(200);
-            // await Task.Delay(10000);
-            // await zbClient.removeDevice("PIR");
-            // await zbClient.allowJoin(0);
-            // // await Task.Delay(12000);
-            // await zbClient.SubscribeDevices();
-            // await Task.Delay(1000);
-            // await zbClient.sendReportConfig();
-            // await Task.Delay(1000);
-            // zbClient.StartProcessingMessages();
+            zbClient.removeDevice("0xd44867fffe2a920a");
+            await Task.Delay(1000);
+            await zbClient.AllowJoinAndListen(30);
+            await zbClient.SubscribeDevices();
+            await Task.Delay(1000);
+            await zbClient.SendReportConfig();
+            await Task.Delay(1000);
+            zbClient.StartProcessingMessages();
 
-            // await Task.Delay(-1);
+            await Task.Delay(-1);
+        }
+        
+        static void OnProcessExit(object sender, EventArgs e)
+        {
+            Console.WriteLine("Program is shutting down... running final function.");
+            MyCleanupFunction();
+        }
+
+        // Triggered on Ctrl+C
+        static void OnCancelKeyPress(object sender, ConsoleCancelEventArgs e)
+        {
+            Console.WriteLine("Ctrl+C pressed. Running cleanup...");
+            MyCleanupFunction();
+            e.Cancel = true; // optional: prevent immediate exit until cleanup finishes
+        }
+
+        static void MyCleanupFunction()
+        {
+            dbQ.UnsubOnExit(); // sets all subscribed columns to false
+            Console.WriteLine("Cleanup function executed!");
         }
             
         }
