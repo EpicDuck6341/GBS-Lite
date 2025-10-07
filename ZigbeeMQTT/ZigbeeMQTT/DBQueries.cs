@@ -80,34 +80,45 @@ namespace Zigbee2MQTTClient
             return modelID;
         }
 
-        // Query report intervals
-        // public void
-        //     queryReportInterval(string address, string table) // "A" = configured_reportings, "B" = ReportTemplate
-        // {
-        //     configList.Clear();
-        //     dbConnect();
-        //
-        //     string tableName = table == "A" ? "configuredreportings" : "reporttemplate";
-        //
-        //     using var cmd = new NpgsqlCommand($"SELECT * FROM {tableName} WHERE address = @address;", connection);
-        //     cmd.Parameters.AddWithValue("@modelId", address);
-        //
-        //     using var reader = cmd.ExecuteReader();
-        //     while (reader.Read())
-        //     {
-        //         configList.Add(new ReportConfig(
-        //             address,
-        //             reader["cluster"].ToString(),
-        //             reader["attribute"].ToString(),
-        //             reader["maximum_report_interval"].ToString(),
-        //             reader["minimum_report_interval"].ToString(),
-        //             reader["reportable_change"].ToString(),
-        //             reader["endpoint"].ToString()
-        //         ));
-        //     }
-        //
-        //     reader.Close();
-        // }
+        // Query report intervals from either tables
+        public void queryReportInterval(string address, string table)
+        {
+            configList.Clear();
+            dbConnect();
+
+            string tableName = table == "A" ? "configuredreportings" : "reporttemplate";
+            
+            string query = tableName == "configuredreportings"
+                ? "SELECT * FROM configuredreportings WHERE address = @address;"
+                : "SELECT * FROM reporttemplate;";
+
+            using var cmd = new NpgsqlCommand(query, connection);
+            
+            if (tableName == "configuredreportings")
+            {
+                cmd.Parameters.AddWithValue("@address", address);
+            }
+
+            using var reader = cmd.ExecuteReader();
+            while (reader.Read())
+            {
+                
+                string addressValue = tableName == "configuredreportings"
+                    ? reader["address"].ToString()
+                    : null;
+
+                configList.Add(new ReportConfig(
+                    addressValue,
+                    reader["modelid"].ToString(),
+                    reader["cluster"].ToString(),
+                    reader["attribute"].ToString(),
+                    reader["maximumreportinterval"].ToString(),
+                    reader["minimumreportinterval"].ToString(),
+                    reader["reportablechange"].ToString(),
+                    reader["endpoint"].ToString()
+                ));
+            }
+        }
 
         // Query DeviceFilters for a model
         public List<string> queryDataFilter(string modelId)
@@ -222,27 +233,27 @@ namespace Zigbee2MQTTClient
 
 
             // Copy report configs
-            // queryReportInterval(modelID, "B");
-            // foreach (var config in configList)
-            // {
-            //     using var cmdReport = new NpgsqlCommand(@"
-            //         INSERT INTO configured_reportings
-            //         (Address, ModelID, cluster, attribute, maximum_report_interval, minimum_report_interval, reportable_change, endpoint)
-            //         VALUES
-            //         (@Address, @ModelID, @Cluster, @Attribute, @MaxInterval, @MinInterval, @ReportableChange, @Endpoint);",
-            //         connection);
-            //
-            //     cmdReport.Parameters.AddWithValue("@Address", address);
-            //     cmdReport.Parameters.AddWithValue("@ModelID", modelID);
-            //     cmdReport.Parameters.AddWithValue("@Cluster", config.cluster);
-            //     cmdReport.Parameters.AddWithValue("@Attribute", config.attribute);
-            //     cmdReport.Parameters.AddWithValue("@MaxInterval", config.maximum_report_interval);
-            //     cmdReport.Parameters.AddWithValue("@MinInterval", config.minimum_report_interval);
-            //     cmdReport.Parameters.AddWithValue("@ReportableChange", config.reportable_change);
-            //     cmdReport.Parameters.AddWithValue("@Endpoint", config.endpoint);
-            //
-            //     cmdReport.ExecuteNonQuery();
-            // }
+            queryReportInterval(modelID, "B");
+            foreach (var config in configList)
+            {
+                using var cmdReport = new NpgsqlCommand(@"
+                    INSERT INTO configuredreportings
+                    (Address, ModelID, cluster, attribute, maximumreportinterval, minimumreportinterval, reportablechange, endpoint)
+                    VALUES
+                    (@Address, @ModelID, @Cluster, @Attribute, @MaxInterval, @MinInterval, @ReportableChange, @Endpoint);",
+                    connection);
+            
+                cmdReport.Parameters.AddWithValue("@Address", address);
+                cmdReport.Parameters.AddWithValue("@ModelID", modelID);
+                cmdReport.Parameters.AddWithValue("@Cluster", config.cluster);
+                cmdReport.Parameters.AddWithValue("@Attribute", config.attribute);
+                cmdReport.Parameters.AddWithValue("@MaxInterval", config.maximum_report_interval);
+                cmdReport.Parameters.AddWithValue("@MinInterval", config.minimum_report_interval);
+                cmdReport.Parameters.AddWithValue("@ReportableChange", config.reportable_change);
+                cmdReport.Parameters.AddWithValue("@Endpoint", config.endpoint);
+            
+                cmdReport.ExecuteNonQuery();
+            }
         }
 
         public void newDeviceEntry(string modelID, string newName, string address)

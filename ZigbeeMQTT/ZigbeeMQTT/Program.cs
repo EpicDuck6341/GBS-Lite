@@ -16,15 +16,15 @@ namespace Zigbee2MQTTClient
             Console.CancelKeyPress += OnCancelKeyPress; 
             await zbClient.ConnectToMqtt();
             await Task.Delay(1000);
-            zbClient.removeDevice("0xd44867fffe2a920a");
+            // zbClient.removeDevice("0xd44867fffe2a920a");
             await Task.Delay(1000);
-            await zbClient.AllowJoinAndListen(30);
+            await zbClient.AllowJoinAndListen(60);
             await zbClient.SubscribeDevices();
             await Task.Delay(1000);
             await zbClient.SendReportConfig();
             await Task.Delay(1000);
             zbClient.StartProcessingMessages();
-
+            
             await Task.Delay(-1);
         }
         
