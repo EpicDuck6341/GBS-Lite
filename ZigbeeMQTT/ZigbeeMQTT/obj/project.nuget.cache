@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "UtYBwp96xOk=",
+  "dgSpecHash": "deBoIMRQiqU=",
   "success": true,
-  "projectFilePath": "/home/vboxuser/RiderProjects/GBS-Lite/ZigbeeMQTT/ZigbeeMQTT/ZigbeeMQTT.csproj",
+  "projectFilePath": "/home/vboxuser/GBS-Lite/ZigbeeMQTT/ZigbeeMQTT/ZigbeeMQTT.csproj",
   "expectedPackageFiles": [
     "/home/vboxuser/.nuget/packages/microsoft.data.sqlite.core/10.0.0-rc.1.25451.107/microsoft.data.sqlite.core.10.0.0-rc.1.25451.107.nupkg.sha512",
     "/home/vboxuser/.nuget/packages/microsoft.extensions.dependencyinjection.abstractions/10.0.0-rc.1.25451.107/microsoft.extensions.dependencyinjection.abstractions.10.0.0-rc.1.25451.107.nupkg.sha512",

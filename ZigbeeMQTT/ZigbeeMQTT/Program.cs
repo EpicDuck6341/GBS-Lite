@@ -13,19 +13,20 @@ namespace Zigbee2MQTTClient
         static async Task Main(string[] args)
         {
             AppDomain.CurrentDomain.ProcessExit += OnProcessExit;
-            Console.CancelKeyPress += OnCancelKeyPress; 
+            Console.CancelKeyPress += OnCancelKeyPress;
             await zbClient.ConnectToMqtt();
             await Task.Delay(1000);
-            // zbClient.removeDevice("0xd44867fffe2a920a");
-            await Task.Delay(1000);
-            await zbClient.AllowJoinAndListen(60);
-            await zbClient.SubscribeDevices();
-            await Task.Delay(1000);
-            await zbClient.SendReportConfig();
-            await Task.Delay(1000);
-            zbClient.StartProcessingMessages();
-            
-            await Task.Delay(-1);
+            await zbClient.SendDeviceOptions();
+            // zbClient.removeDevice("0xa4c138024a75ffff");
+            // await Task.Delay(1000);
+            // await zbClient.AllowJoinAndListen(15);
+            // // await zbClient.SubscribeDevices();
+            // // await Task.Delay(1000);
+            // // await zbClient.SendReportConfig();
+            // // await Task.Delay(1000);
+            // zbClient.StartProcessingMessages();
+            //
+            // await Task.Delay(-1);
         }
         
         static void OnProcessExit(object sender, EventArgs e)

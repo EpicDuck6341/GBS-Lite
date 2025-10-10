@@ -4635,11 +4635,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "/home/vboxuser/RiderProjects/GBS-Lite/ZigbeeMQTT/ZigbeeMQTT/ZigbeeMQTT.csproj",
+      "projectUniqueName": "/home/vboxuser/GBS-Lite/ZigbeeMQTT/ZigbeeMQTT/ZigbeeMQTT.csproj",
       "projectName": "ZigbeeMQTT",
-      "projectPath": "/home/vboxuser/RiderProjects/GBS-Lite/ZigbeeMQTT/ZigbeeMQTT/ZigbeeMQTT.csproj",
+      "projectPath": "/home/vboxuser/GBS-Lite/ZigbeeMQTT/ZigbeeMQTT/ZigbeeMQTT.csproj",
       "packagesPath": "/home/vboxuser/.nuget/packages/",
-      "outputPath": "/home/vboxuser/RiderProjects/GBS-Lite/ZigbeeMQTT/ZigbeeMQTT/obj/",
+      "outputPath": "/home/vboxuser/GBS-Lite/ZigbeeMQTT/ZigbeeMQTT/obj/",
       "projectStyle": "PackageReference",
       "configFilePaths": [
         "/home/vboxuser/.nuget/NuGet/NuGet.Config"

@@ -51,6 +51,7 @@ public class ZigbeeClient
             Console.WriteLine("No unsubscribed devices");
             return;
         }
+
         foreach (var unsub in unsubbed)
         {
             await mqttClient.SubscribeAsync("zigbee2mqtt/" + unsub);
@@ -62,12 +63,22 @@ public class ZigbeeClient
         Console.WriteLine("All EndDevice subscriptions done.");
     }
 
+    internal async Task SubscribeAfterJoin(string address)
+    {
+        await mqttClient.SubscribeAsync("zigbee2mqtt/" + address);
+        dbQ.setSubscribedStatus(true, address);
+        Console.WriteLine($"Subscribed to {address}");
+
+
+        IsReady = true;
+        Console.WriteLine("All newly joined EndDevice subscriptions done.");
+    }
 
     internal async Task SendReportConfig()
     {
         // Get all changed report configs
         var changedConfigs = dbQ.GetChangedReportConfigs(dbQ.GetSubscribedAddresses());
-        
+
         foreach (var config in changedConfigs)
         {
             Console.WriteLine("test");
@@ -101,175 +112,357 @@ public class ZigbeeClient
                               $"  Minimum Report Interval: {config.minimum_report_interval}\n" +
                               $"  Maximum Report Interval: {config.maximum_report_interval}\n" +
                               $"  Reportable Change: {config.reportable_change}\n");
-
-            
         }
     }
 
-
-
-   public async Task AllowJoinAndListen(int seconds)
-{
-    var transactionId = Guid.NewGuid().ToString();
-    var payload = new { time = seconds, transaction = transactionId };
-    string payloadToSend = JsonSerializer.Serialize(payload);
-
-    var openMessage = new MqttApplicationMessageBuilder()
-        .WithTopic("zigbee2mqtt/bridge/request/permit_join")
-        .WithPayload(payloadToSend)
-        .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtLeastOnce)
-        .Build();
-
-    // Subscribe to bridge events
-    await mqttClient.SubscribeAsync("zigbee2mqtt/bridge/event");
-
-    async Task Handler(MqttApplicationMessageReceivedEventArgs e)
+    
+    internal async Task SendDeviceOptions()
     {
-        if (e.ApplicationMessage.Topic != "zigbee2mqtt/bridge/event")
-            return;
+        // Fetch all changed options (where adjusted = true)
+        var changedOptions = dbQ.GetChangedOptionValues(dbQ.GetSubscribedAddresses());
 
-        string payloadStr = Encoding.UTF8.GetString(e.ApplicationMessage.Payload);
-        var json = JsonSerializer.Deserialize<JsonElement>(payloadStr);
-
-        if (json.GetProperty("type").GetString() == "device_interview" &&
-            json.GetProperty("data").GetProperty("status").GetString() == "successful")
+        foreach (var opt in changedOptions)
         {
-            var data = json.GetProperty("data");
-            string address = data.GetProperty("ieee_address").GetString();
-            string model = data.GetProperty("definition").GetProperty("model").GetString();
-            Console.WriteLine($"Device joined: {address}");
+            object valueToSend;
 
-            // // Database handling
-            // if (dbQ.devicePresent(model, address))
-            // {
-            //     dbQ.setActiveStatus(true, address);
-            //     return;
-            // }
-            //
-            // if (dbQ.modelPresent(model, address))
-            // {
-            //     dbQ.copyModelTemplate(model, address);
-            //     return;
-            // }
-            //
-            // var exposes = data.GetProperty("definition").GetProperty("exposes");
-            // dbQ.newDeviceEntry(model, address, address);
-            // dbQ.newDVTemplateEntry(model, address);
+            // Try to parse as int
+            if (int.TryParse(opt.CurrentValue, out int intVal))
+            {
+                valueToSend = intVal;
+            }
+            // If not int, try to parse as double
+            else if (double.TryParse(opt.CurrentValue, out double doubleVal))
+            {
+                valueToSend = doubleVal;
+            }
+            else
+            {
+                // fallback to string
+                valueToSend = opt.CurrentValue;
+            }
 
-             GetDeviceDetails(address, model);
-             
-             // foreach (JsonElement expose in exposes.EnumerateArray())
-             // {
-             //     string property = expose.GetProperty("property").GetString();
-             //     dbQ.newFilterEntry(model, property, true);
-             //     string description = expose.GetProperty("description").GetString();
-             //     // Console.WriteLine($"  - {property} ({description})");
-             // }
+            var payload = new JsonObject
+            {
+                [opt.Property] = JsonValue.Create(valueToSend)
+            };
+
+            string payloadToSend = payload.ToJsonString();
+
+            var message = new MqttApplicationMessageBuilder()
+                .WithTopic($"zigbee2mqtt/{opt.Address}/set")
+                .WithPayload(payloadToSend)
+                .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtLeastOnce)
+                .Build();
+
+            await mqttClient.PublishAsync(message);
+
+            Console.WriteLine($"Sent option update:\n" +
+                              $"  Address: {opt.Address}\n" +
+                              $"  Property: {opt.Property}\n" +
+                              $"  Value: {valueToSend}\n" +
+                              $"  Topic: zigbee2mqtt/{opt.Address}/set");
         }
-
-        return;
     }
 
-    mqttClient.ApplicationMessageReceivedAsync += Handler;
 
-    await mqttClient.PublishAsync(openMessage);
-    await Task.Delay(seconds * 1000);
 
-    var closePayload = JsonSerializer.Serialize(new { time = 0, transaction = Guid.NewGuid().ToString() });
-    var closeMessage = new MqttApplicationMessageBuilder()
-        .WithTopic("zigbee2mqtt/bridge/request/permit_join")
-        .WithPayload(closePayload)
-        .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtLeastOnce)
-        .Build();
+    public async Task AllowJoinAndListen(int seconds)
+    {
+        var transactionId = Guid.NewGuid().ToString();
+        var payload = new { time = seconds, transaction = transactionId };
+        string payloadToSend = JsonSerializer.Serialize(payload);
 
-    await mqttClient.PublishAsync(closeMessage);
-    mqttClient.ApplicationMessageReceivedAsync -= Handler;
-}
+        var openMessage = new MqttApplicationMessageBuilder()
+            .WithTopic("zigbee2mqtt/bridge/request/permit_join")
+            .WithPayload(payloadToSend)
+            .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtLeastOnce)
+            .Build();
+        
+        await mqttClient.SubscribeAsync("zigbee2mqtt/bridge/event");
+
+        Queue<(string address, string model)> joinedDevice = new();
+        Queue<(string address,string model, List<String> propTarget,List<String> descs)> targetData = new();
+        List<String> props = new();
+        List<String> descList = new();
+
+        async Task Handler(MqttApplicationMessageReceivedEventArgs e)
+        {
+            if (e.ApplicationMessage.Topic != "zigbee2mqtt/bridge/event")
+                return;
+
+            string payloadStr = Encoding.UTF8.GetString(e.ApplicationMessage.Payload);
+            var json = JsonSerializer.Deserialize<JsonElement>(payloadStr);
+
+            if (json.GetProperty("type").GetString() == "device_interview" &&
+                json.GetProperty("data").GetProperty("status").GetString() == "successful")
+            {
+                var data = json.GetProperty("data");
+                string address = data.GetProperty("ieee_address").GetString();
+                string model = data.GetProperty("definition").GetProperty("model").GetString();
+                Console.WriteLine($"Device joined: {address}");
+
+                // Database handling
+                if (dbQ.devicePresent(model, address))
+                {
+                    dbQ.setActiveStatus(true, address);
+                    return;
+                }
+                
+                if (dbQ.modelPresent(model, address))
+                {
+                    dbQ.copyModelTemplate(model, address);
+                    return;
+                }
+                
+                var exposes = data.GetProperty("definition").GetProperty("exposes");
+                var options = data.GetProperty("definition").GetProperty("options");
+                dbQ.newDeviceEntry(model, address, address);
+                dbQ.newDVTemplateEntry(model, address);
+
+                joinedDevice.Enqueue((address, model));
+
+                foreach (JsonElement expose in exposes.EnumerateArray())
+                {
+                    string property = expose.GetProperty("property").GetString();
+                    dbQ.newFilterEntry(model, property, true);
+                    string description = expose.GetProperty("description").GetString();
+                    Console.WriteLine($"  - {property} ({description})");
+
+
+                    var accessEx = expose.GetProperty("access").GetInt16();
+                    if (accessEx == 7 || accessEx == 2)
+                    {
+                        if (accessEx == 7)
+                        {
+                            descList.Add(expose.GetProperty("description").GetString());
+                            props.Add(property);
+                        }
+
+                    }
+                }
+
+                foreach (JsonElement option in options.EnumerateArray())
+                {
+                    var accesOp = option.GetProperty("access").GetInt16();
+                    string property = option.GetProperty("property").GetString();
+                    if (accesOp == 2 || accesOp == 7)
+                    {
+                        Console.WriteLine(" test5");
+                        if (accesOp == 7)
+                        {
+                            descList.Add(option.GetProperty("description").GetString());
+                            props.Add(property);
+                        }
+                    }
+                }
+
+                targetData.Enqueue((address,model, props,descList));
+            }
+
+            return;
+        }
+
+        mqttClient.ApplicationMessageReceivedAsync += Handler;
+
+        await mqttClient.PublishAsync(openMessage);
+        await Task.Delay(seconds * 1000);
+
+        var closePayload = JsonSerializer.Serialize(new { time = 0, transaction = Guid.NewGuid().ToString() });
+        var closeMessage = new MqttApplicationMessageBuilder()
+            .WithTopic("zigbee2mqtt/bridge/request/permit_join")
+            .WithPayload(closePayload)
+            .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtLeastOnce)
+            .Build();
+
+        await mqttClient.PublishAsync(closeMessage);
+
+        while (joinedDevice.Count > 0)
+        {
+            var (addr, model) = joinedDevice.Dequeue();
+            await GetDeviceDetails(addr, model);
+            await SubscribeAfterJoin(addr);
+        }
+
+        while (targetData.Count > 0)
+        {
+            var (addr,mdl, propTarget,description) = targetData.Dequeue();
+            await GetOptionDetails(addr,mdl ,propTarget,description);
+        }
+
+        mqttClient.ApplicationMessageReceivedAsync -= Handler;
+    }
 
 
     internal async Task GetDeviceDetails(string address, string modelID)
-{
-    
-    var tcs = new TaskCompletionSource<bool>();
-
-    // Define the handler as a variable so we can unsubscribe later
-    Func<MqttApplicationMessageReceivedEventArgs, Task> handler = null!;
-
-    handler = async e =>
     {
-       
-        string topic = e.ApplicationMessage.Topic;
-        string payload = Encoding.UTF8.GetString(e.ApplicationMessage.Payload.ToArray());
-        if (topic.Contains("zigbee2mqtt/bridge/devices"))
+        var tcs = new TaskCompletionSource<bool>();
+        Func<MqttApplicationMessageReceivedEventArgs, Task> handler = null!;
+
+        handler = async e =>
         {
-            using JsonDocument doc = JsonDocument.Parse(payload);
-            string targetAddress = address;
+            string topic = e.ApplicationMessage.Topic;
+            string payload = Encoding.UTF8.GetString(e.ApplicationMessage.Payload.ToArray());
 
-            foreach (JsonElement device in doc.RootElement.EnumerateArray())
+            if (topic == "zigbee2mqtt/bridge/devices")
             {
-                string ieee = device.GetProperty("ieee_address").GetString();
-                if (ieee != targetAddress) continue;
+                using JsonDocument doc = JsonDocument.Parse(payload);
+                string targetAddress = address;
 
-                Console.WriteLine($"Device: {ieee}");
-
-                if (!device.TryGetProperty("endpoints", out JsonElement endpoints))
-                    continue;
-                
-                var oopie = endpoints.EnumerateArray();
-                
-                foreach (JsonProperty ep in endpoints.EnumerateObject())
+                foreach (JsonElement device in doc.RootElement.EnumerateArray())
                 {
-                    Console.WriteLine($" Endpoint: {ep.Name}");
+                    string ieee = device.GetProperty("ieee_address").GetString();
+                    if (ieee != targetAddress) continue;
 
-                    if (!ep.Value.TryGetProperty("configured_reportings", out JsonElement reportings))
-                        continue;
-                    
-                    foreach (JsonElement rep in reportings.EnumerateArray())
+                    Console.WriteLine($"Device found: {ieee} (target: {targetAddress})");
+
+                    if (!device.TryGetProperty("endpoints", out JsonElement endpoints))
                     {
-                        Console.WriteLine(
-                            $"  Reporting: cluster={rep.GetProperty("cluster").GetString()}, attribute={rep.GetProperty("attribute").GetString()}");
-
-                        dbQ.newConfigRepEntry(
-                            "configuredreportings",
-                            address,
-                            modelID,
-                            rep.GetProperty("cluster").GetString(),
-                            rep.GetProperty("attribute").GetString(),
-                            rep.GetProperty("maximum_report_interval").GetInt32().ToString(),
-                            rep.GetProperty("minimum_report_interval").GetInt32().ToString(),
-                            rep.GetProperty("reportable_change").ToString(),
-                            ep.Name
-                        );
-
-                        dbQ.newConfigRepEntry(
-                            "reporttemplate",
-                            address,
-                            modelID,
-                            rep.GetProperty("cluster").GetString(),
-                            rep.GetProperty("attribute").GetString(),
-                            rep.GetProperty("maximum_report_interval").GetInt32().ToString(),
-                            rep.GetProperty("minimum_report_interval").GetInt32().ToString(),
-                            rep.GetProperty("reportable_change").ToString(),
-                            ep.Name
-                        );
+                        Console.WriteLine("No endpoints property found.");
+                        continue;
                     }
+
+                    foreach (JsonProperty ep in endpoints.EnumerateObject())
+                    {
+                        Console.WriteLine($"Endpoint {ep.Name}");
+
+                        if (!ep.Value.TryGetProperty("configured_reportings", out JsonElement reportings))
+                        {
+                            Console.WriteLine(" No configured_reportings property.");
+                            continue;
+                        }
+
+                       
+                        int retries = 0;
+                        while (reportings.GetArrayLength() == 0 && retries < 5)
+                        {
+                            Console.WriteLine($"No reportings yet (retry {retries + 1}/5)...");
+                            await Task.Delay(5000); 
+
+                          
+                            var requestPayload =
+                                JsonSerializer.Serialize(new { transaction = Guid.NewGuid().ToString() });
+                            var requestMessage = new MqttApplicationMessageBuilder()
+                                .WithTopic("zigbee2mqtt/bridge/request/devices")
+                                .WithPayload(requestPayload)
+                                .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtLeastOnce)
+                                .Build();
+
+                            await mqttClient.PublishAsync(requestMessage);
+                            retries++;
+                            return; 
+                        }
+
+                        Console.WriteLine($"Found {reportings.GetArrayLength()} reportings.");
+
+                        foreach (JsonElement rep in reportings.EnumerateArray())
+                        {
+                            Console.WriteLine(
+                                $"      • Reporting: cluster={rep.GetProperty("cluster").GetString()}, attribute={rep.GetProperty("attribute").GetString()}");
+
+                            dbQ.newConfigRepEntry(
+                                "configuredreportings",
+                                address,
+                                modelID,
+                                rep.GetProperty("cluster").GetString(),
+                                rep.GetProperty("attribute").GetString(),
+                                rep.GetProperty("maximum_report_interval").GetInt32().ToString(),
+                                rep.GetProperty("minimum_report_interval").GetInt32().ToString(),
+                                rep.GetProperty("reportable_change").ToString(),
+                                ep.Name
+                            );
+
+                            dbQ.newConfigRepEntry(
+                                "reporttemplate",
+                                address,
+                                modelID,
+                                rep.GetProperty("cluster").GetString(),
+                                rep.GetProperty("attribute").GetString(),
+                                rep.GetProperty("maximum_report_interval").GetInt32().ToString(),
+                                rep.GetProperty("minimum_report_interval").GetInt32().ToString(),
+                                rep.GetProperty("reportable_change").ToString(),
+                                ep.Name
+                            );
+                        }
+                    }
+                }
+
+                mqttClient.ApplicationMessageReceivedAsync -= handler;
+                tcs.TrySetResult(true);
+            }
+        };
+
+        mqttClient.ApplicationMessageReceivedAsync += handler;
+        await mqttClient.SubscribeAsync("zigbee2mqtt/bridge/devices");
+
+        // Initial request for all devices
+        var initialPayload = JsonSerializer.Serialize(new { transaction = Guid.NewGuid().ToString() });
+        var initialRequest = new MqttApplicationMessageBuilder()
+            .WithTopic("zigbee2mqtt/bridge/request/devices")
+            .WithPayload(initialPayload)
+            .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtLeastOnce)
+            .Build();
+
+        await mqttClient.PublishAsync(initialRequest);
+
+        await tcs.Task;
+    }
+
+
+    internal async Task GetOptionDetails(string address,string model, List<string> readableProps,List<String> description)
+    {
+        var tcs = new TaskCompletionSource<bool>();
+
+        Func<MqttApplicationMessageReceivedEventArgs, Task> handler = null!;
+        handler = async e =>
+        {
+            string topic = e.ApplicationMessage.Topic;
+            if (topic != $"zigbee2mqtt/{address}")
+                return;
+            var pl = JsonNode.Parse(Encoding.UTF8.GetString(e.ApplicationMessage.Payload.ToArray()));
+            string payload = Encoding.UTF8.GetString(e.ApplicationMessage.Payload);
+            JsonNode? node = JsonNode.Parse(payload);
+            if (node == null)
+                return;
+
+            var filtered = new JsonObject();
+
+            int i = 0;
+            foreach (var prop in readableProps)
+            {
+                
+                if (node[prop] != null)
+                {
+                    filtered[prop] = node[prop]!.DeepClone();
+                    // 🔹 store in DB
+                    dbQ.SetOptions(address, model,description[i], node[prop]!.ToJsonString(),prop);
+                    Console.WriteLine($"Option: {prop} = {node[prop]}");
+                    i++;
                 }
             }
 
-            // Unsubscribe to prevent multiple calls next time
             mqttClient.ApplicationMessageReceivedAsync -= handler;
             tcs.TrySetResult(true);
-        }
-    };
+        };
 
-    mqttClient.ApplicationMessageReceivedAsync += handler;
-    
-    await mqttClient.SubscribeAsync("zigbee2mqtt/bridge/devices");
-    await tcs.Task;
-}
+        mqttClient.ApplicationMessageReceivedAsync += handler;
 
-    
-   
+        
+
+        var getMessage = new MqttApplicationMessageBuilder()
+            .WithTopic($"zigbee2mqtt/{address}")
+            .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtLeastOnce)
+            .Build();
+
+        await mqttClient.PublishAsync(getMessage);
+
+        // Wait up to 5 seconds for response
+        var completed = await Task.WhenAny(tcs.Task, Task.Delay(10000));
+        mqttClient.ApplicationMessageReceivedAsync -= handler;
+
+        if (completed != tcs.Task)
+            Console.WriteLine($"⚠️ Timeout while getting options for {address}");
+    }
+
 
 
     internal async Task
@@ -329,7 +522,4 @@ public class ZigbeeClient
             return Task.CompletedTask;
         };
     }
-    
-
 }
-

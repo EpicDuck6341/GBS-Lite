@@ -87,13 +87,13 @@ namespace Zigbee2MQTTClient
             dbConnect();
 
             string tableName = table == "A" ? "configuredreportings" : "reporttemplate";
-            
+
             string query = tableName == "configuredreportings"
                 ? "SELECT * FROM configuredreportings WHERE address = @address;"
                 : "SELECT * FROM reporttemplate;";
 
             using var cmd = new NpgsqlCommand(query, connection);
-            
+
             if (tableName == "configuredreportings")
             {
                 cmd.Parameters.AddWithValue("@address", address);
@@ -102,7 +102,6 @@ namespace Zigbee2MQTTClient
             using var reader = cmd.ExecuteReader();
             while (reader.Read())
             {
-                
                 string addressValue = tableName == "configuredreportings"
                     ? reader["address"].ToString()
                     : null;
@@ -242,7 +241,7 @@ namespace Zigbee2MQTTClient
                     VALUES
                     (@Address, @ModelID, @Cluster, @Attribute, @MaxInterval, @MinInterval, @ReportableChange, @Endpoint);",
                     connection);
-            
+
                 cmdReport.Parameters.AddWithValue("@Address", address);
                 cmdReport.Parameters.AddWithValue("@ModelID", modelID);
                 cmdReport.Parameters.AddWithValue("@Cluster", config.cluster);
@@ -251,7 +250,7 @@ namespace Zigbee2MQTTClient
                 cmdReport.Parameters.AddWithValue("@MinInterval", config.minimum_report_interval);
                 cmdReport.Parameters.AddWithValue("@ReportableChange", config.reportable_change);
                 cmdReport.Parameters.AddWithValue("@Endpoint", config.endpoint);
-            
+
                 cmdReport.ExecuteNonQuery();
             }
         }
@@ -390,12 +389,11 @@ namespace Zigbee2MQTTClient
             using var reader = cmd.ExecuteReader();
             while (reader.Read())
             {
+                Console.WriteLine(">:3");
                 addresses.Add(reader.GetString(0));
-
-                return addresses;
             }
 
-            return null;
+            return addresses;
         }
 
         public List<string> GetSubscribedAddresses()
@@ -455,67 +453,163 @@ namespace Zigbee2MQTTClient
         }
 
         public List<ReportConfig> GetChangedReportConfigs(List<string> subscribedAddresses)
-{
-    var changedConfigs = new List<ReportConfig>();
-    dbConnect(); 
-    if (subscribedAddresses == null || subscribedAddresses.Count == 0)
-        return changedConfigs; 
+        {
+            var changedConfigs = new List<ReportConfig>();
+            dbConnect();
+            if (subscribedAddresses == null || subscribedAddresses.Count == 0)
+                return changedConfigs;
 
-    
-    var parameters = subscribedAddresses
-        .Select((addr, index) => $"@addr{index}")
-        .ToList();
-    string inClause = string.Join(", ", parameters);
 
-    
-    string selectSql = $@"
+            var parameters = subscribedAddresses
+                .Select((addr, index) => $"@addr{index}")
+                .ToList();
+            string inClause = string.Join(", ", parameters);
+
+
+            string selectSql = $@"
         SELECT address, cluster, modelid, attribute, maximumreportinterval, minimumreportinterval, reportablechange, endpoint
         FROM configuredreportings
         WHERE adjusted = true AND address IN ({inClause});
     ";
 
-    using var selectCmd = new NpgsqlCommand(selectSql, connection);
+            using var selectCmd = new NpgsqlCommand(selectSql, connection);
 
-    for (int i = 0; i < subscribedAddresses.Count; i++)
-    {
-        selectCmd.Parameters.AddWithValue($"@addr{i}", subscribedAddresses[i]);
-    }
+            for (int i = 0; i < subscribedAddresses.Count; i++)
+            {
+                selectCmd.Parameters.AddWithValue($"@addr{i}", subscribedAddresses[i]);
+            }
 
-    using var reader = selectCmd.ExecuteReader();
-    while (reader.Read())
-    {
-        changedConfigs.Add(new ReportConfig(
-            reader["address"].ToString(),
-            reader["modelid"].ToString(),
-            reader["cluster"].ToString(),
-            reader["attribute"].ToString(),
-            reader["minimumreportinterval"].ToString(),
-            reader["maximumreportinterval"].ToString(),
-            reader["reportablechange"].ToString(),
-            reader["endpoint"].ToString()
-        ));
-    }
-    reader.Close(); 
+            using var reader = selectCmd.ExecuteReader();
+            while (reader.Read())
+            {
+                changedConfigs.Add(new ReportConfig(
+                    reader["address"].ToString(),
+                    reader["modelid"].ToString(),
+                    reader["cluster"].ToString(),
+                    reader["attribute"].ToString(),
+                    reader["minimumreportinterval"].ToString(),
+                    reader["maximumreportinterval"].ToString(),
+                    reader["reportablechange"].ToString(),
+                    reader["endpoint"].ToString()
+                ));
+            }
 
-    
-    string updateSql = $@"
+            reader.Close();
+
+
+            string updateSql = $@"
         UPDATE configuredreportings
         SET adjusted = false
         WHERE adjusted = true AND address IN ({inClause});
     ";
 
-    using var updateCmd = new NpgsqlCommand(updateSql, connection);
+            using var updateCmd = new NpgsqlCommand(updateSql, connection);
 
-    for (int i = 0; i < subscribedAddresses.Count; i++)
-    {
-        updateCmd.Parameters.AddWithValue($"@addr{i}", subscribedAddresses[i]);
+            for (int i = 0; i < subscribedAddresses.Count; i++)
+            {
+                updateCmd.Parameters.AddWithValue($"@addr{i}", subscribedAddresses[i]);
+            }
+
+            updateCmd.ExecuteNonQuery();
+
+            return changedConfigs;
+        }
+
+        public void SetOptions(string address, string model, string description, string currentValue,string property)
+        {
+            dbConnect();
+
+            using var cmdInsert = new NpgsqlCommand(
+                "INSERT INTO options (address, model, description,currentValue,property) VALUES (@Address, @Model, @Description, @CurrentValue,@Property);",
+                connection);
+            cmdInsert.Parameters.AddWithValue("@Address", address);
+            cmdInsert.Parameters.AddWithValue("@Model", model);
+            cmdInsert.Parameters.AddWithValue("@Description", description);
+            cmdInsert.Parameters.AddWithValue("@CurrentValue", currentValue);
+            cmdInsert.Parameters.AddWithValue("@Property", property);
+            cmdInsert.ExecuteNonQuery();
+        }
+        
+        public void AdjustOptionValue(string address, string property, string currentValue)
+        {
+            dbConnect();
+
+            string sql = @"
+        UPDATE deviceoptions
+        SET 
+            currentvalue = @CurrentValue,
+            adjusted = true
+        WHERE 
+            address = @Address AND
+            property = @Property;
+    ";
+
+            using var cmd = new NpgsqlCommand(sql, connection);
+            cmd.Parameters.AddWithValue("@CurrentValue", currentValue);
+            cmd.Parameters.AddWithValue("@Address", address);
+            cmd.Parameters.AddWithValue("@Property", property);
+
+            cmd.ExecuteNonQuery();
+        }
+        
+        public List<(string Address, string Property, string CurrentValue)> GetChangedOptionValues(List<string> subscribedAddresses)
+        {
+            var changedOptions = new List<(string, string, string)>();
+            dbConnect();
+
+            if (subscribedAddresses == null || subscribedAddresses.Count == 0)
+                return changedOptions;
+
+            var parameters = subscribedAddresses
+                .Select((addr, index) => $"@addr{index}")
+                .ToList();
+            string inClause = string.Join(", ", parameters);
+
+            string selectSql = $@"
+        SELECT address, property, currentvalue
+        FROM options
+        WHERE changed = true AND address IN ({inClause});
+    ";
+
+            using var selectCmd = new NpgsqlCommand(selectSql, connection);
+
+            for (int i = 0; i < subscribedAddresses.Count; i++)
+            {
+                selectCmd.Parameters.AddWithValue($"@addr{i}", subscribedAddresses[i]);
+            }
+
+            using var reader = selectCmd.ExecuteReader();
+            while (reader.Read())
+            {
+                changedOptions.Add((
+                    reader["address"].ToString(),
+                    reader["property"].ToString(),
+                    reader["currentvalue"].ToString()
+                ));
+            }
+
+            reader.Close();
+
+            // Reset the adjusted flag
+            string updateSql = $@"
+        UPDATE options
+        SET changed = false
+        WHERE changed = true AND address IN ({inClause});
+    ";
+
+            using var updateCmd = new NpgsqlCommand(updateSql, connection);
+            for (int i = 0; i < subscribedAddresses.Count; i++)
+            {
+                updateCmd.Parameters.AddWithValue($"@addr{i}", subscribedAddresses[i]);
+            }
+
+            updateCmd.ExecuteNonQuery();
+
+            return changedOptions;
+        }
+
+
     }
-
-    updateCmd.ExecuteNonQuery();
-
-    return changedConfigs;
-}
-
-
-    }
+    
+    
 }
