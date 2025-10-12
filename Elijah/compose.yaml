@@ -1,0 +1,7 @@
+﻿services:
+  elijah:
+    image: elijah
+    build:
+      context: .
+      dockerfile: Elijah/Dockerfile
+

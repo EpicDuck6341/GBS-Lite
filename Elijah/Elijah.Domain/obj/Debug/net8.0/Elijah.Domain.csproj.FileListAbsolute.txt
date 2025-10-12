@@ -1,0 +1,11 @@
+/home/vboxuser/RiderProjects/Elijah/Elijah.Domain/bin/Debug/net8.0/Elijah.Domain.deps.json
+/home/vboxuser/RiderProjects/Elijah/Elijah.Domain/bin/Debug/net8.0/Elijah.Domain.dll
+/home/vboxuser/RiderProjects/Elijah/Elijah.Domain/bin/Debug/net8.0/Elijah.Domain.pdb
+/home/vboxuser/RiderProjects/Elijah/Elijah.Domain/obj/Debug/net8.0/Elijah.Domain.GeneratedMSBuildEditorConfig.editorconfig
+/home/vboxuser/RiderProjects/Elijah/Elijah.Domain/obj/Debug/net8.0/Elijah.Domain.AssemblyInfoInputs.cache
+/home/vboxuser/RiderProjects/Elijah/Elijah.Domain/obj/Debug/net8.0/Elijah.Domain.AssemblyInfo.cs
+/home/vboxuser/RiderProjects/Elijah/Elijah.Domain/obj/Debug/net8.0/Elijah.Domain.csproj.CoreCompileInputs.cache
+/home/vboxuser/RiderProjects/Elijah/Elijah.Domain/obj/Debug/net8.0/Elijah.Domain.dll
+/home/vboxuser/RiderProjects/Elijah/Elijah.Domain/obj/Debug/net8.0/refint/Elijah.Domain.dll
+/home/vboxuser/RiderProjects/Elijah/Elijah.Domain/obj/Debug/net8.0/Elijah.Domain.pdb
+/home/vboxuser/RiderProjects/Elijah/Elijah.Domain/obj/Debug/net8.0/ref/Elijah.Domain.dll

@@ -1,0 +1,17 @@
+/home/vboxuser/RiderProjects/Elijah/Elijah.Logic/bin/Debug/net8.0/Elijah.Logic.deps.json
+/home/vboxuser/RiderProjects/Elijah/Elijah.Logic/bin/Debug/net8.0/Elijah.Logic.dll
+/home/vboxuser/RiderProjects/Elijah/Elijah.Logic/bin/Debug/net8.0/Elijah.Logic.pdb
+/home/vboxuser/RiderProjects/Elijah/Elijah.Logic/bin/Debug/net8.0/Elijah.Data.dll
+/home/vboxuser/RiderProjects/Elijah/Elijah.Logic/bin/Debug/net8.0/Elijah.Domain.dll
+/home/vboxuser/RiderProjects/Elijah/Elijah.Logic/bin/Debug/net8.0/Elijah.Data.pdb
+/home/vboxuser/RiderProjects/Elijah/Elijah.Logic/bin/Debug/net8.0/Elijah.Domain.pdb
+/home/vboxuser/RiderProjects/Elijah/Elijah.Logic/obj/Debug/net8.0/Elijah.Logic.csproj.AssemblyReference.cache
+/home/vboxuser/RiderProjects/Elijah/Elijah.Logic/obj/Debug/net8.0/Elijah.Logic.GeneratedMSBuildEditorConfig.editorconfig
+/home/vboxuser/RiderProjects/Elijah/Elijah.Logic/obj/Debug/net8.0/Elijah.Logic.AssemblyInfoInputs.cache
+/home/vboxuser/RiderProjects/Elijah/Elijah.Logic/obj/Debug/net8.0/Elijah.Logic.AssemblyInfo.cs
+/home/vboxuser/RiderProjects/Elijah/Elijah.Logic/obj/Debug/net8.0/Elijah.Logic.csproj.CoreCompileInputs.cache
+/home/vboxuser/RiderProjects/Elijah/Elijah.Logic/obj/Debug/net8.0/Elijah.L.A0594A6B.Up2Date
+/home/vboxuser/RiderProjects/Elijah/Elijah.Logic/obj/Debug/net8.0/Elijah.Logic.dll
+/home/vboxuser/RiderProjects/Elijah/Elijah.Logic/obj/Debug/net8.0/refint/Elijah.Logic.dll
+/home/vboxuser/RiderProjects/Elijah/Elijah.Logic/obj/Debug/net8.0/Elijah.Logic.pdb
+/home/vboxuser/RiderProjects/Elijah/Elijah.Logic/obj/Debug/net8.0/ref/Elijah.Logic.dll

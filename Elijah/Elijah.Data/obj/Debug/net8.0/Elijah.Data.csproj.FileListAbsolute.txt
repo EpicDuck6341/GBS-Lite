@@ -1,0 +1,15 @@
+/home/vboxuser/RiderProjects/Elijah/Elijah.Data/bin/Debug/net8.0/Elijah.Data.deps.json
+/home/vboxuser/RiderProjects/Elijah/Elijah.Data/bin/Debug/net8.0/Elijah.Data.dll
+/home/vboxuser/RiderProjects/Elijah/Elijah.Data/bin/Debug/net8.0/Elijah.Data.pdb
+/home/vboxuser/RiderProjects/Elijah/Elijah.Data/bin/Debug/net8.0/Elijah.Domain.dll
+/home/vboxuser/RiderProjects/Elijah/Elijah.Data/bin/Debug/net8.0/Elijah.Domain.pdb
+/home/vboxuser/RiderProjects/Elijah/Elijah.Data/obj/Debug/net8.0/Elijah.Data.csproj.AssemblyReference.cache
+/home/vboxuser/RiderProjects/Elijah/Elijah.Data/obj/Debug/net8.0/Elijah.Data.GeneratedMSBuildEditorConfig.editorconfig
+/home/vboxuser/RiderProjects/Elijah/Elijah.Data/obj/Debug/net8.0/Elijah.Data.AssemblyInfoInputs.cache
+/home/vboxuser/RiderProjects/Elijah/Elijah.Data/obj/Debug/net8.0/Elijah.Data.AssemblyInfo.cs
+/home/vboxuser/RiderProjects/Elijah/Elijah.Data/obj/Debug/net8.0/Elijah.Data.csproj.CoreCompileInputs.cache
+/home/vboxuser/RiderProjects/Elijah/Elijah.Data/obj/Debug/net8.0/Elijah.D.A6CB957D.Up2Date
+/home/vboxuser/RiderProjects/Elijah/Elijah.Data/obj/Debug/net8.0/Elijah.Data.dll
+/home/vboxuser/RiderProjects/Elijah/Elijah.Data/obj/Debug/net8.0/refint/Elijah.Data.dll
+/home/vboxuser/RiderProjects/Elijah/Elijah.Data/obj/Debug/net8.0/Elijah.Data.pdb
+/home/vboxuser/RiderProjects/Elijah/Elijah.Data/obj/Debug/net8.0/ref/Elijah.Data.dll
