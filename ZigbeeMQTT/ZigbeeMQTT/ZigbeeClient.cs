@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.IO.Ports;
 using System.Text.Json.Nodes;
 using MQTTnet.Protocol;
 
@@ -17,6 +18,7 @@ public class ZigbeeClient
     private static DBQueries dbQ = new DBQueries();
     public List<ZigbeeDevice> deviceList = new List<ZigbeeDevice>();
     private readonly ConcurrentDictionary<string, TaskCompletionSource<bool>> _pendingDeviceDetails = new();
+    static SerialPort _serialPort;
 
 
     public bool IsReady { get; private set; } = false;
@@ -28,6 +30,44 @@ public class ZigbeeClient
         .WithTcpServer("172.17.0.1", 1883)
         .WithClientId("TestClient")
         .Build();
+
+    internal async Task ESPConnect()
+    {
+        _serialPort = new SerialPort("/dev/ttyUSB1", 115200);
+        _serialPort.ReadTimeout = 2000;
+        _serialPort.WriteTimeout = 2000;
+
+        _serialPort.Open();
+        Console.WriteLine("Serial port opened. Waiting for ESP to reset...");
+        await Task.Delay(4000);
+
+        string response = "";
+        int attempts = 0;
+
+        while (!response.Contains("ESP_READY") && attempts < 20)
+        {
+            try
+            {
+                Console.WriteLine(attempts);
+                response += _serialPort.ReadExisting();
+                await Task.Delay(200);
+                attempts++;
+            }
+            catch (TimeoutException)
+            {
+            }
+        }
+
+        if (response.Contains("ESP_READY"))
+        {
+            Console.WriteLine("ESP_READY received!");
+            _serialPort.WriteLine("test"); // \r\n automatically added
+        }
+        else
+        {
+            Console.WriteLine("Failed to receive ESP_READY");
+        }
+    }
 
     internal async Task ConnectToMqtt()
     {
@@ -115,7 +155,7 @@ public class ZigbeeClient
         }
     }
 
-    
+
     internal async Task SendDeviceOptions()
     {
         // Fetch all changed options (where adjusted = true)
@@ -165,7 +205,6 @@ public class ZigbeeClient
     }
 
 
-
     public async Task AllowJoinAndListen(int seconds)
     {
         var transactionId = Guid.NewGuid().ToString();
@@ -177,11 +216,11 @@ public class ZigbeeClient
             .WithPayload(payloadToSend)
             .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtLeastOnce)
             .Build();
-        
+
         await mqttClient.SubscribeAsync("zigbee2mqtt/bridge/event");
 
         Queue<(string address, string model)> joinedDevice = new();
-        Queue<(string address,string model, List<String> propTarget,List<String> descs)> targetData = new();
+        Queue<(string address, string model, List<String> propTarget, List<String> descs)> targetData = new();
         List<String> props = new();
         List<String> descList = new();
 
@@ -207,13 +246,13 @@ public class ZigbeeClient
                     dbQ.setActiveStatus(true, address);
                     return;
                 }
-                
+
                 if (dbQ.modelPresent(model, address))
                 {
                     dbQ.copyModelTemplate(model, address);
                     return;
                 }
-                
+
                 var exposes = data.GetProperty("definition").GetProperty("exposes");
                 var options = data.GetProperty("definition").GetProperty("options");
                 dbQ.newDeviceEntry(model, address, address);
@@ -237,7 +276,6 @@ public class ZigbeeClient
                             descList.Add(expose.GetProperty("description").GetString());
                             props.Add(property);
                         }
-
                     }
                 }
 
@@ -256,7 +294,7 @@ public class ZigbeeClient
                     }
                 }
 
-                targetData.Enqueue((address,model, props,descList));
+                targetData.Enqueue((address, model, props, descList));
             }
 
             return;
@@ -285,8 +323,8 @@ public class ZigbeeClient
 
         while (targetData.Count > 0)
         {
-            var (addr,mdl, propTarget,description) = targetData.Dequeue();
-            await GetOptionDetails(addr,mdl ,propTarget,description);
+            var (addr, mdl, propTarget, description) = targetData.Dequeue();
+            await GetOptionDetails(addr, mdl, propTarget, description);
         }
 
         mqttClient.ApplicationMessageReceivedAsync -= Handler;
@@ -331,14 +369,14 @@ public class ZigbeeClient
                             continue;
                         }
 
-                       
+
                         int retries = 0;
                         while (reportings.GetArrayLength() == 0 && retries < 5)
                         {
                             Console.WriteLine($"No reportings yet (retry {retries + 1}/5)...");
-                            await Task.Delay(5000); 
+                            await Task.Delay(5000);
 
-                          
+
                             var requestPayload =
                                 JsonSerializer.Serialize(new { transaction = Guid.NewGuid().ToString() });
                             var requestMessage = new MqttApplicationMessageBuilder()
@@ -349,7 +387,7 @@ public class ZigbeeClient
 
                             await mqttClient.PublishAsync(requestMessage);
                             retries++;
-                            return; 
+                            return;
                         }
 
                         Console.WriteLine($"Found {reportings.GetArrayLength()} reportings.");
@@ -408,7 +446,8 @@ public class ZigbeeClient
     }
 
 
-    internal async Task GetOptionDetails(string address,string model, List<string> readableProps,List<String> description)
+    internal async Task GetOptionDetails(string address, string model, List<string> readableProps,
+        List<String> description)
     {
         var tcs = new TaskCompletionSource<bool>();
 
@@ -429,12 +468,11 @@ public class ZigbeeClient
             int i = 0;
             foreach (var prop in readableProps)
             {
-                
                 if (node[prop] != null)
                 {
                     filtered[prop] = node[prop]!.DeepClone();
                     // 🔹 store in DB
-                    dbQ.SetOptions(address, model,description[i], node[prop]!.ToJsonString(),prop);
+                    dbQ.SetOptions(address, model, description[i], node[prop]!.ToJsonString(), prop);
                     Console.WriteLine($"Option: {prop} = {node[prop]}");
                     i++;
                 }
@@ -446,7 +484,6 @@ public class ZigbeeClient
 
         mqttClient.ApplicationMessageReceivedAsync += handler;
 
-        
 
         var getMessage = new MqttApplicationMessageBuilder()
             .WithTopic($"zigbee2mqtt/{address}")
@@ -460,9 +497,8 @@ public class ZigbeeClient
         mqttClient.ApplicationMessageReceivedAsync -= handler;
 
         if (completed != tcs.Task)
-            Console.WriteLine($"⚠️ Timeout while getting options for {address}");
+            Console.WriteLine($"Timeout while getting options for {address}");
     }
-
 
 
     internal async Task
@@ -492,13 +528,34 @@ public class ZigbeeClient
         await mqttClient.PublishAsync(message);
     }
 
+    internal async Task sendESPConfig(int bright)
+    {
+        var address = "0xe4b323fffe9e2d38";
+
+        var payload = new
+        {
+            brightness = bright
+        };
+
+        // Convert the payload to a JSON string
+        string payloadToSend = JsonSerializer.Serialize(payload);
+
+        // Construct the MQTT message
+        var message = new MqttApplicationMessageBuilder()
+            .WithTopic($"zigbee2mqtt/{address}/set") // Send directly to the device topic
+            .WithPayload(payloadToSend)
+            .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtLeastOnce)
+            .Build();
+
+        await mqttClient.PublishAsync(message);
+    }
+
     internal void StartProcessingMessages()
     {
         mqttClient.ApplicationMessageReceivedAsync += e =>
         {
             string topic = e.ApplicationMessage.Topic;
             string payload = Encoding.UTF8.GetString(e.ApplicationMessage.Payload.ToArray());
-
             if (!topic.Contains("zigbee2mqtt/bridge"))
             {
                 string filterTopic = topic.Replace("zigbee2mqtt/", "");
@@ -507,6 +564,22 @@ public class ZigbeeClient
                 string modelID = dbQ.queryModelID(filterTopic);
                 List<String> keyPairs = dbQ.queryDataFilter(modelID);
 
+                // if (node?["temperature"] != null)
+                // {
+                //     var temperature = node["temperature"]!.GetValue<Double>();
+                //     Console.WriteLine($"Temperature: {temperature}");
+                //     _serialPort.WriteLine( temperature.ToString());
+                // }
+
+                // if (filterTopic.Equals("0xe4b323fffe9e2d38"))
+                // {
+                //     for (int i = 0; i < 4; i++)
+                //     {
+                //         sendESPConfig(i + 1);
+                //         Task.Delay(200);
+                //     }
+                // }
+                Console.WriteLine($"[{topic}] {payload}");
                 foreach (var key in keyPairs)
                 {
                     if (node[key] != null)
@@ -516,7 +589,8 @@ public class ZigbeeClient
                 }
 
                 Console.WriteLine($"[{dbQ.queryDeviceName(modelID)},{modelID}]{filtered.ToJsonString()}");
-                // Console.WriteLine($"[{topic}] {payload}");
+
+                
             }
 
             return Task.CompletedTask;
